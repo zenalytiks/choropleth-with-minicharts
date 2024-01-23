@@ -1,20 +1,17 @@
-#Resources: 
-#https://python-visualization.github.io/folium/latest/advanced_guide/piechart_icons.html
-#https://python-graph-gallery.com/292-choropleth-map-with-folium/
-
 # import the folium library
 import folium
-import branca
 import pandas as pd
 import json
 import geopandas as gpd
 import io
 import matplotlib.pyplot as plt
 
+MAP_TITLE = "Python Visual for PowerBI"
 PRODUCT_1_COLOR = "#e6194b"
 PRODUCT_2_COLOR = "#19e6b4"
 PRODUCT_3_COLOR = "#318CE7"
 LEGEND_COLOR = "YlGn"
+PIE_CHART_SIZE_SCALE = 9 #The smaller the value, the bigger the size gets.
 
 JSON_FILE_PATH = "Geolevel.json"
 DATA_FILE_PATH = "data.csv"
@@ -55,7 +52,7 @@ for size_values,sizes in zip(pie_charts_data,pivot_df['Sum of QTY']):
     # Calculate the number of zeros after the decimal point
     num_zeros = len(str(sizes))
     # Construct the decimal representation
-    fig_size_multiplier = 1 / (8.5 ** num_zeros)  # You can adjust this multiplier as needed
+    fig_size_multiplier = 1 / (PIE_CHART_SIZE_SCALE ** num_zeros)  # You can adjust this multiplier as needed
 
     fig_size = sizes * fig_size_multiplier
     fig, ax = plt.subplots(figsize=(fig_size, fig_size))
@@ -63,6 +60,10 @@ for size_values,sizes in zip(pie_charts_data,pivot_df['Sum of QTY']):
     
     # Plot the pie chart
     ax.pie(size_values, colors=(PRODUCT_1_COLOR, PRODUCT_2_COLOR, PRODUCT_3_COLOR))
+
+    # Adjust the position of the pie chart in the center
+    ax.set(aspect="equal")
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
     
     # Save the figure to a buffer
     buff = io.StringIO()
@@ -78,8 +79,7 @@ for size_values,sizes in zip(pie_charts_data,pivot_df['Sum of QTY']):
 
 #Set up legend for pie charts
 
-legend_html = """
-{% macro html(this, kwargs) %}
+legend_html = '''
 <div style="
     position: fixed;
     bottom: 50px;
@@ -89,9 +89,9 @@ legend_html = """
     z-index:9999;
     font-size:14px;
     ">
-    <p><a style="color:#e6194b;font-size:150%;margin-left:20px;">◼</a>&emsp;Product 1</p>
-    <p><a style="color:#19e6b4;font-size:150%;margin-left:20px;">◼</a>&emsp;Product 2</p>
-    <p><a style="color:#318CE7;font-size:150%;margin-left:20px;">◼</a>&emsp;Product 3</p>
+    <p><a style="color:{};font-size:150%;margin-left:20px;">◼</a>&emsp;Product 1</p>
+    <p><a style="color:{};font-size:150%;margin-left:20px;">◼</a>&emsp;Product 2</p>
+    <p><a style="color:{};font-size:150%;margin-left:20px;">◼</a>&emsp;Product 3</p>
 </div>
 <div style="
     position: fixed;
@@ -102,18 +102,18 @@ legend_html = """
     z-index:9998;
     font-size:14px;
     background-color: #ffffff;
+    border: 2px solid #000;
     opacity: 0.7;
     ">
 </div>
-{% endmacro %}
-"""
+'''.format(PRODUCT_1_COLOR,PRODUCT_2_COLOR,PRODUCT_3_COLOR)
 
-legend = branca.element.MacroElement()
-legend._template = branca.element.Template(legend_html)
+
+title_html = f'<h1 style="position:absolute;z-index:100000;left:40vw;top:5vh" >{MAP_TITLE}</h1>'
 
 
 # initialize the map and store it in a m object
-m = folium.Map(location=[46.475066, 2.415322], zoom_start=6, tiles=None)
+m = folium.Map(location=[46.475066, 2.415322], zoom_start=6, tiles=None, zoom_control=False, scrollWheelZoom=False, dragging=False)
 
 folium.Choropleth(
     geo_data=states_topo,
@@ -130,13 +130,15 @@ folium.Choropleth(
 
 for i, coord in enumerate(pivot_df['coordinates']):
     marker = folium.Marker(coord)
-    icon = folium.DivIcon(html=plots[i])
+    icon = folium.DivIcon(html=plots[i],icon_size=(70,70))
     marker.add_child(icon)
     popup = folium.Popup(
-        "Product 1: {}<br>\nProduct 2: {}<br>\nProduct 3: {}".format(pivot_df['Somme de QTY_Product 1'][i], pivot_df['Somme de QTY_Product 2'][i], pivot_df['Somme de QTY_Product 3'][i])
+        "Product 1: {}<br>\nProduct 2: {}<br>\nProduct 3: {}".format(pivot_df['Somme de QTY_Product 1'][i], pivot_df['Somme de QTY_Product 2'][i], pivot_df['Somme de QTY_Product 3'][i]),
+        min_width=100,max_width=100
     )
     marker.add_child(popup)
     m.add_child(marker)
-m.get_root().add_child(legend)
+m.get_root().html.add_child(folium.Element(title_html))
+m.get_root().html.add_child(folium.Element(legend_html))
 
 m.save('out.html')
