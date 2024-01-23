@@ -1,4 +1,4 @@
-# import the folium library
+# Import necessary libraries
 import folium
 import pandas as pd
 import json
@@ -6,99 +6,99 @@ import geopandas as gpd
 import io
 import matplotlib.pyplot as plt
 
+# Constants for map and legend titles, colors, and file paths
 MAP_TITLE = "Python Visual for PowerBI"
-PRODUCT_1_COLOR = "#e6194b"
-PRODUCT_2_COLOR = "#19e6b4"
-PRODUCT_3_COLOR = "#318CE7"
-LEGEND_COLOR = "YlGn"
-PIE_CHART_SIZE_SCALE = 9 #The smaller the value, the bigger the size gets.
+PIE_LEGEND_TITLE = "Products"
+MAP_LEGEND_TITLE = "Sum of Value"
+PRODUCT_COLORS = ["#e6194b", "#19e6b4", "#318CE7"]
+MAP_LEGEND_COLOR = "YlGn"
+PIE_CHART_SIZE_SCALE = 9  # The smaller the value, the bigger the size gets.
 
 JSON_FILE_PATH = "Geolevel.json"
 DATA_FILE_PATH = "data.csv"
 
+# Load TopoJSON file and create a GeoDataFrame
 with open(JSON_FILE_PATH) as f:
-  states_topo = json.load(f)
+    states_topo = json.load(f)
 
 geolevel_df = gpd.read_file(JSON_FILE_PATH, driver='TopoJSON')
 
+# Calculate centroids and create a DataFrame with 'Geolevel 1' and coordinates
 geolevel_df["lon"] = geolevel_df["geometry"].centroid.x
 geolevel_df["lat"] = geolevel_df["geometry"].centroid.y
 geolevel_df['coordinates'] = list(zip(geolevel_df['lat'], geolevel_df['lon']))
-geolevel_df.rename(columns={'KAM8':'Geolevel 1'},inplace=True)
+geolevel_df.rename(columns={'KAM8': 'Geolevel 1'}, inplace=True)
 centeroids_df = geolevel_df[['Geolevel 1', 'coordinates']]
 
+# Read CSV data and perform necessary data manipulations
 df = pd.read_csv(DATA_FILE_PATH)
-
 total_value = df.groupby(by='Geolevel 1')['Somme de Value'].sum().reset_index()
 
 pivot_df = df.pivot(index='Geolevel 1', columns='Product', values=['Somme de QTY', 'Somme de Value'])
-
-# Flatten the MultiIndex columns
 pivot_df.columns = [f'{col[0]}_{col[1]}' for col in pivot_df.columns]
-
-# Reset index to make 'Geolevel 1' a regular column
 pivot_df.reset_index(inplace=True)
-
-pivot_df['Sum of QTY'] = pivot_df[['Somme de QTY_Product 1', 'Somme de QTY_Product 2', 'Somme de QTY_Product 3']].sum(axis=1)
-
+pivot_df['Sum of QTY'] = pivot_df[[f'Somme de QTY_{product}' for product in df['Product'].unique()]].sum(axis=1)
 pivot_df = pd.merge(pivot_df, centeroids_df, on='Geolevel 1', how='left')
 
-# Generate pie charts
-pie_charts_data = zip(pivot_df['Somme de QTY_Product 1'], pivot_df['Somme de QTY_Product 2'], pivot_df['Somme de QTY_Product 3'])
-
+# Generate pie charts and store them in a list
+pie_charts_data = zip(*(pivot_df[col] for col in [f'Somme de QTY_{product}' for product in df['Product'].unique()]))
 plots = []
-for size_values,sizes in zip(pie_charts_data,pivot_df['Sum of QTY']):
+
+for size_values, sizes in zip(pie_charts_data, pivot_df['Sum of QTY']):
     # Create a figure and axis dynamically
-    # Calculate the number of zeros after the decimal point
     num_zeros = len(str(sizes))
-    # Construct the decimal representation
-    fig_size_multiplier = 1 / (PIE_CHART_SIZE_SCALE ** num_zeros)  # You can adjust this multiplier as needed
+    fig_size_multiplier = 1 / (PIE_CHART_SIZE_SCALE ** num_zeros)
 
     fig_size = sizes * fig_size_multiplier
     fig, ax = plt.subplots(figsize=(fig_size, fig_size))
     fig.patch.set_alpha(0)
-    
-    # Plot the pie chart
-    ax.pie(size_values, colors=(PRODUCT_1_COLOR, PRODUCT_2_COLOR, PRODUCT_3_COLOR))
 
-    # Adjust the position of the pie chart in the center
+    # Plot the pie chart
+    ax.pie(size_values, colors=PRODUCT_COLORS)
+
     ax.set(aspect="equal")
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-    
+
     # Save the figure to a buffer
     buff = io.StringIO()
     plt.savefig(buff, format="SVG")
     buff.seek(0)
-    
-    # Read the SVG content and replace newlines
+
     svg = buff.read().replace("\n", "")
     plots.append(svg)
-    
-    # Close the figure
+
     plt.close()
 
-#Set up legend for pie charts
-
+# Set up legend for pie charts
+content_height = 27
+background_height = 54
 legend_html = '''
 <div style="
     position: fixed;
-    bottom: 50px;
+    bottom: 100px;
     left: 50px;
     width: 250px;
-    height: 80px;
+    height: {};
     z-index:9999;
     font-size:14px;
     ">
-    <p><a style="color:{};font-size:150%;margin-left:20px;">◼</a>&emsp;Product 1</p>
-    <p><a style="color:{};font-size:150%;margin-left:20px;">◼</a>&emsp;Product 2</p>
-    <p><a style="color:{};font-size:150%;margin-left:20px;">◼</a>&emsp;Product 3</p>
+    <h4 style="margin-left: 40px;">{}</h4>
+'''.format(str(content_height * len(df['Product'].unique())) + "px", PIE_LEGEND_TITLE)
+
+# Add dynamically generated color and product entries
+for name, color in zip(df['Product'].unique(), PRODUCT_COLORS):
+    legend_html += '''
+    <p><a style="color:{};font-size:150%;margin-left:20px;">◼</a>&emsp;{}</p>
+    '''.format(color, name)
+
+legend_html += '''
 </div>
 <div style="
     position: fixed;
-    bottom: 15px;
+    bottom: 23px;
     left: 50px;
     width: 150px;
-    height: 120px;
+    height: {};
     z-index:9998;
     font-size:14px;
     background-color: #ffffff;
@@ -106,15 +106,15 @@ legend_html = '''
     opacity: 0.7;
     ">
 </div>
-'''.format(PRODUCT_1_COLOR,PRODUCT_2_COLOR,PRODUCT_3_COLOR)
+'''.format(str(background_height * len(df['Product'].unique())) + "px")
 
-
+# HTML title for the map
 title_html = f'<h1 style="position:absolute;z-index:100000;left:40vw;top:5vh" >{MAP_TITLE}</h1>'
 
+# Initialize the Folium map
+m = folium.Map(location=[46.475066, 2.415322], zoom_start=6, tiles=None)
 
-# initialize the map and store it in a m object
-m = folium.Map(location=[46.475066, 2.415322], zoom_start=6, tiles=None, zoom_control=False, scrollWheelZoom=False, dragging=False)
-
+# Add choropleth layer to the map
 folium.Choropleth(
     geo_data=states_topo,
     topojson='objects.test2',
@@ -122,23 +122,28 @@ folium.Choropleth(
     data=total_value,
     columns=["Geolevel 1", "Somme de Value"],
     key_on="feature.properties.KAM8",
-    fill_color=LEGEND_COLOR,
+    fill_color=MAP_LEGEND_COLOR,
     fill_opacity=0.7,
     line_opacity=.1,
-    legend_name="Sum of Value",
+    legend_name=MAP_LEGEND_TITLE,
 ).add_to(m)
 
+# Add markers with pie charts to the map
 for i, coord in enumerate(pivot_df['coordinates']):
     marker = folium.Marker(coord)
-    icon = folium.DivIcon(html=plots[i],icon_size=(70,70))
+    icon = folium.DivIcon(html=plots[i], icon_size=(70, 70))
     marker.add_child(icon)
     popup = folium.Popup(
-        "Product 1: {}<br>\nProduct 2: {}<br>\nProduct 3: {}".format(pivot_df['Somme de QTY_Product 1'][i], pivot_df['Somme de QTY_Product 2'][i], pivot_df['Somme de QTY_Product 3'][i]),
-        min_width=100,max_width=100
+        "<br>\n".join(["{}: {}".format(name, pivot_df[column][i]) for name, column in
+                       zip(df['Product'].unique(), [f'Somme de QTY_{product}' for product in df['Product'].unique()])]),
+        min_width=100, max_width=100
     )
     marker.add_child(popup)
     m.add_child(marker)
+
+# Add HTML elements to the map
 m.get_root().html.add_child(folium.Element(title_html))
 m.get_root().html.add_child(folium.Element(legend_html))
 
+# Save the map as an HTML file
 m.save('out.html')
