@@ -7,7 +7,7 @@ import io
 import matplotlib.pyplot as plt
 
 # Constants for map and legend titles, colors, and file paths
-MAP_TITLE = "Python Visual for PowerBI"
+MAP_TITLE = "Sales Distribution by Regions"
 PIE_LEGEND_TITLE = "Products"
 MAP_LEGEND_TITLE = "Sum of Value"
 PRODUCT_COLORS = ["#e6194b", "#19e6b4", "#318CE7"]
@@ -109,7 +109,7 @@ legend_html += '''
 '''.format(str(background_height * len(df['Product'].unique())) + "px")
 
 # HTML title for the map
-title_html = f'<h1 style="position:absolute;z-index:100000;left:40vw;top:5vh" >{MAP_TITLE}</h1>'
+title_html = f'<h1 style="position:absolute;z-index:100000;left:38vw;top:5vh" >{MAP_TITLE}</h1>'
 
 # Initialize the Folium map
 m = folium.Map(location=[46.475066, 2.415322], zoom_start=6, tiles=None)
@@ -146,4 +146,4 @@ m.get_root().html.add_child(folium.Element(title_html))
 m.get_root().html.add_child(folium.Element(legend_html))
 
 # Save the map as an HTML file
-m.save('out.html')
+m.save('index.html')
